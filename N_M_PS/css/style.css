@@ -229,21 +229,65 @@ input[type=number] { min-width:0; width:100%; padding:8px; font-size:12px; borde
 .mobile-save-preview button { padding:10px 22px; border:0; border-radius:10px; background:#f1d5e7; color:#563b52; font-weight:bold; }
 
 
-/* 모바일: 글꼴과 크기 입력을 한 줄에 간결하게 배치 */
+/* 모바일: 글꼴 선택과 글자 크기 조절을 반드시 같은 줄에 배치 */
 @media (max-width: 600px) {
   .formatbar > .toolbar-row:first-child {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 116px;
-    gap: 7px;
+    grid-template-columns: minmax(0, 1fr) 140px;
+    column-gap: 8px;
     align-items: end;
   }
-  .font-field { min-width: 0; width: auto; flex: initial; }
-  .font-field select { display:block; width:100%; min-width:0; height:38px; font-size:13px; }
-  .size-field { width:116px; min-width:0; flex:initial; }
-  .font-size-controls { display:grid; grid-template-columns:26px minmax(0, 1fr) 26px; gap:3px; width:100%; }
-  .font-size-step { display:flex; width:26px; min-width:0; height:38px; min-height:38px; padding:0; font-size:17px; border-radius:7px; }
-  .font-size-controls input[type=number] { box-sizing:border-box; width:100%; min-width:0; height:38px; min-height:38px; padding:3px 1px; font-size:15px; text-align:center; border-radius:7px; }
+  .formatbar .font-field,
+  .formatbar .size-field {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    flex: none;
+  }
+  .formatbar .font-field select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 38px;
+    padding: 4px 6px;
+    font-size: 13px;
+  }
+  .formatbar .font-size-controls {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+  .formatbar .font-size-controls .font-size-step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 30px;
+    min-width: 0;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+  .formatbar .font-size-controls input[type="number"] {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: 38px;
+    min-height: 38px;
+    padding: 3px 0;
+    font-size: 15px;
+    text-align: center;
+    border-radius: 8px;
+  }
 }
+
 /* Safari에서 숫자 칸 내부 스피너가 공간을 차지하지 않도록 설정 */
 .font-size-controls input[type=number]::-webkit-inner-spin-button,
 .font-size-controls input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }

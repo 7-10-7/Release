@@ -629,13 +629,16 @@ function draw(){
  if(overflow)byId('status').textContent='글이 영역을 넘쳤어요. 글자 크기·줄 간격·문단 간격을 조절해 주세요.';
  else if(byId('status').textContent.startsWith('글이 영역을 넘쳤어요'))byId('status').textContent='';
 }
-// 모바일: 공유 시트로 PNG 저장 지원, 미지원 환경에는 이미지를 길게 눌러 저장하도록 표시합니다.
+// 모바일 Safari는 download 속성이 무시될 수 있어 공유/이미지 보기를 함께 제공합니다.
 function showMobileSavePreview(data){
- const layer=document.createElement('div');layer.className='mobile-save-preview';layer.setAttribute('role','dialog');layer.setAttribute('aria-label','PNG 이미지 저장');
- const msg=document.createElement('p');msg.textContent='이미지를 길게 눌러 사진에 저장하거나 다운로드하세요.';
+ const old=document.querySelector('.mobile-save-preview');if(old)old.remove();
+ const layer=document.createElement('div');layer.className='mobile-save-preview';
+ layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.setAttribute('aria-label','PNG 이미지 저장');
+ const msg=document.createElement('p');msg.textContent='아이폰에서는 이미지를 길게 눌러 “사진 앱에 저장”을 선택하세요.';
  const img=document.createElement('img');img.src=data;img.alt='완성된 로그 이미지';
+ const open=document.createElement('a');open.href=data;open.target='_blank';open.rel='noopener';open.textContent='이미지 새 탭에서 열기';
  const close=document.createElement('button');close.type='button';close.textContent='닫기';close.addEventListener('click',()=>layer.remove());
- layer.append(msg,img,close);document.body.appendChild(layer);
+ layer.append(msg,img,open,close);document.body.appendChild(layer);
 }
 function pngBlobFromDataURL(data){
  const binary=atob(data.substring(data.indexOf(',')+1));
@@ -643,34 +646,38 @@ function pngBlobFromDataURL(data){
  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
  return new Blob([bytes],{type:'image/png'});
 }
+function downloadPNG(blob){
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');
+ a.href=url;a.download='No_More_PS_로그.png';a.style.display='none';
+ document.body.appendChild(a);a.click();
+ setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},60000);
+}
 byId('save').addEventListener('click',async()=>{
- try {
+ const status=byId('status');
+ status.textContent='PNG 이미지를 생성하고 있습니다…';
+ try{
   draw();
   const data=canvas.toDataURL('image/png');
-  const mobile=/iPad|iPhone|iPod|Android/i.test(navigator.userAgent)||
-   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(!data.startsWith('data:image/png'))throw new Error('PNG 변환에 실패했습니다.');
   const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||
-   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  // iOS Safari는 일반 a.download를 무시하는 경우가 있어 공유 시트를 우선합니다.
+    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   if(isIOS){
-   const file=new File([pngBlobFromDataURL(data)],'No_More_PS_로그.png',{type:'image/png'});
-   if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-    try { await navigator.share({files:[file],title:'로그 PNG 이미지'});return; }
-    catch(error){if(error.name==='AbortError')return;}
-   }
+   // 먼저 이미지 화면을 보여 줍니다. 공유가 실패하더라도 저장할 수 있도록 합니다.
    showMobileSavePreview(data);
-   byId('status').textContent='이미지를 길게 눌러 저장할 수 있습니다.';
+   status.textContent='저장 화면을 열었습니다. 이미지를 길게 눌러 저장할 수 있어요.';
+   if(navigator.share && navigator.canShare){
+    const file=new File([pngBlobFromDataURL(data)],'No_More_PS_로그.png',{type:'image/png'});
+    if(navigator.canShare({files:[file]})){
+     try{await navigator.share({files:[file],title:'로그 PNG 이미지'});document.querySelector('.mobile-save-preview')?.remove();status.textContent='공유 메뉴가 열렸습니다.';}
+     catch(err){if(err.name!=='AbortError')status.textContent='공유 메뉴를 열지 못했습니다. 표시된 이미지를 길게 눌러 저장하세요.';}
+    }
+   }
    return;
   }
-  const blob=pngBlobFromDataURL(data);
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='No_More_PS_로그.png';
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
-  byId('status').textContent='PNG 다운로드를 요청했습니다. 다운로드 폴더를 확인해 주세요.';
-  // 모바일 브라우저의 다운로드 제한 시 사용할 수 있는 저장 안내
-  if(mobile)byId('status').textContent+=' 저장되지 않으면 브라우저 메뉴에서 다운로드를 확인해 주세요.';
- }catch(error){byId('status').textContent='PNG 생성 중 오류가 발생했습니다: '+(error.message||error);}
+  downloadPNG(pngBlobFromDataURL(data));
+  status.textContent='PNG 다운로드를 요청했습니다. 브라우저 다운로드 목록을 확인하세요.';
+ }catch(error){status.textContent='PNG 저장 오류: '+(error.message||String(error));}
 });
 byId('reset').addEventListener('click',()=>{
  for(const id in defs)byId(id).value=byId(id+'Num').value=defs[id];

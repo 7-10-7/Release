@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f9e9f3">
+  <title>NO MORE PS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Nanum+Gothic&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/script.js" defer></script>
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="brand-mark" aria-hidden="true">✦</div>
+    <div>
+      <div class="eyebrow">포토샵... 너무 귀찮아...</div>
+      <h1>5:3 LOG IMG GENERATOR</h1>
+      <p>이미지와 텍스트를 넣어 PNG로 저장하세요.</p>
+    </div>
+    <div class="header-spec">1600 × 960 <span>·</span> 5:3</div>
+  </header>
+
+  <main class="workspace">
+    <section class="panel" aria-label="로그 편집 도구">
+      <!-- ① 이미지 업로드 및 크롭 -->
+      <div class="section-heading"><span class="section-num">01</span><div><h2>이미지 구성</h2><p>좌측 이미지 · 640 × 960</p></div></div>
+      <div class="control-block">
+        <label for="photo">이미지 업로드</label>
+        <input id="photo" type="file" accept="image/*">
+        <p class="hint">이미지를 선택하면 2:3 비율 크롭 편집 창이 열립니다.</p>
+      </div>
+      <button id="editCrop" class="button-subtle" type="button" disabled>선택 영역 다시 조정</button>
+
+      <!-- ② 본문 및 서식: 폰트/크기/정렬/색상/굵기 -->
+      <div class="section-heading"><span class="section-num">02</span><div><h2>본문 편집</h2><p>텍스트 · 서식 · 정렬</p></div></div>
+      <div class="control-block">
+        <label for="story">본문 내용</label>
+        <div class="editor-shell">
+          <div class="formatbar" role="toolbar" aria-label="본문 서식 도구">
+            <div class="toolbar-row">
+              <label class="tool-field font-field" for="fontFamily">
+                <span>글꼴</span>
+                <select id="fontFamily" aria-label="글꼴 선택">
+                  <option value="sans" style="font-family: 'Noto Sans KR', 'Noto Sans CJK KR', sans-serif;">고딕</option>
+                  <option value="serif" style="font-family: 'Nanum Myeongjo', 'Noto Serif KR', 'Batang', serif;">명조</option>
+                  <option value="Soon" style="font-family: 'Soonbatang', serif;">순바탕</option>
+                  <option value="gowunba" style="font-family: 'GounBatang', serif;">고운바탕</option>
+                  <option value="GowoonDo" style="font-family: 'GowoonDodum', sans-serif;">고운돋움</option>
+                  <option value="nanumgo" style="font-family: 'Nanum Gothic', sans-serif;">나눔고딕</option>
+                  <option value="pretendard" style="font-family: 'Pretendard', 'Malgun Gothic', sans-serif;">Pretendard</option>
+                  <option value="notoserif" style="font-family: 'Noto Serif KR', 'Batang', serif;">Noto Serif KR</option>
+                  <option value="bookk" style="font-family: 'BookkMyungjo', serif;">부크크명조</option>
+                  <option value="bookkgo" style="font-family: 'BookkGothic', sans-serif;">부크크고딕</option>
+                  <option value="JoseonGulim" style="font-family: 'JoseonGulim', sans-serif;">조선굴림체</option>
+                  <option value="JoseonGa" style="font-family: 'JoseonGaneGothic', sans-serif;">조선가는고딕</option>
+                  <option value="ChosunIlbo" style="font-family: 'ChosunIlboMyungjo', serif;">조선일보명조체</option>
+                  <option value="JoseonShin" style="font-family: 'JoseonShinmyeongjo', serif;">조선신명조</option>
+                  <option value="Jaemin60" style="font-family: 'HangulJaemin60', serif;">한글재민체 6.0</option>
+                  <option value="kyuri" style="font-family: 'KyuriSDiary', serif; font-size: 16px;">규리의 일기</option>
+                  <option value="wood" style="font-family: 'WoodGarden', serif; font-size: 14px;">손편지체</option>
+                  <option value="BujangNim" style="font-family: 'GangBujangNim', serif; font-size: 13px;">강부장님체</option>
+                  <option value="mona10" style="font-family: 'Mona10', sans-serif;">Mona10</option>
+                  <option value="mona" style="font-family: 'Mona12', sans-serif;">Mona12</option>
+                </select>
+              </label>
+              <label class="tool-field size-field" for="fontSize">
+                <span>크기 (px)</span>
+                <div class="font-size-controls">
+                  <button type="button" id="fontSizeMinus" class="font-size-step" aria-label="글자 크기 줄이기">−</button>
+                  <input id="fontSize" type="number" min="8" max="48" value="22" inputmode="numeric">
+                  <button type="button" id="fontSizePlus" class="font-size-step" aria-label="글자 크기 키우기">+</button>
+                </div>
+              </label>
+            </div>
+            <div class="toolbar-row toolbar-actions">
+              <div class="tool-group" aria-label="선택 텍스트 서식">
+                <button type="button" class="format-button" data-format="bold" title="굵게 (Ctrl+B)" aria-label="굵게" aria-pressed="false"><b>B</b></button>
+                <button type="button" class="format-button" data-format="italic" title="기울임 (Ctrl+I)" aria-label="기울임" aria-pressed="false"><i>I</i></button>
+                <button type="button" class="format-button" data-format="underline" title="밑줄 (Ctrl+U)" aria-label="밑줄" aria-pressed="false"><u>U</u></button>
+                <button type="button" class="format-button" data-format="strikeThrough" title="취소선" aria-label="취소선" aria-pressed="false"><s>S</s></button>
+              </div>
+              <div class="tool-group" role="group" aria-label="문단 정렬">
+                <button type="button" class="align-button" data-align="left" title="왼쪽 정렬" aria-label="왼쪽 정렬" aria-pressed="false">≡</button>
+                <button type="button" class="align-button" data-align="center" title="가운데 정렬" aria-label="가운데 정렬" aria-pressed="false">☰</button>
+                <button type="button" class="align-button" data-align="right" title="오른쪽 정렬" aria-label="오른쪽 정렬" aria-pressed="false">≡</button>
+                <button type="button" class="align-button" data-align="justify" title="양쪽 정렬" aria-label="양쪽 정렬" aria-pressed="true">▤</button>
+              </div>
+            </div>
+            <div class="toolbar-row toolbar-colors">
+              <label class="color-tool" for="ink"><span>글자색</span><input id="ink" type="color" value="#333333" aria-label="글자색 변경: 선택한 글자에 적용, 선택이 없으면 본문 전체에 적용"></label>
+              <label class="color-tool" for="highlightColor"><span>형광펜</span><input id="highlightColor" type="color" value="#fff29a" aria-label="선택 영역 형광펜 색상"></label>
+              <button type="button" id="clearHighlight" class="tool-clear">형광펜 지우기</button>
+              <button type="button" id="clearFormat" class="tool-clear">선택 서식 해제</button>
+              <button type="button" id="clearAllFormat" class="tool-clear">전체 선택 서식 해제</button>
+            </div>
+          </div>
+          <div id="story" class="editor" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="로그 본문 내용" data-placeholder="여기에 로그 내용을 입력하거나 붙여넣으세요."></div>
+        </div>
+        <p class="hint">글자를 선택하면 해당 영역에만, 선택하지 않으면 본문 전체에 적용됩니다.</p>
+        <p class="hint" id="fontStatus" aria-live="polite"></p>
+      </div>
+
+      <!-- ③ 레이아웃 관련 설정 -->
+      <div class="section-heading"><span class="section-num">03</span><div><h2>레이아웃</h2><p>여백 · 줄 간격 · 문단 간격 · 배경</p></div></div>
+      <div class="control-block">
+        <label for="textPad">본문 좌우 여백 <small>기본 각 45px</small></label>
+        <div class="pair"><input type="range" id="textPad" min="0" max="250" value="45"><input type="number" id="textPadNum" min="0" max="250" value="45" aria-label="본문 좌우 여백 수치"></div>
+      </div>
+      <div class="control-block">
+        <label for="top">세로 중심 보정 <small>기본 0px</small></label>
+        <div class="pair"><input type="range" id="top" min="-250" max="250" value="0"><input type="number" id="topNum" min="-250" max="250" value="0" aria-label="세로 중심 보정 수치"></div>
+        <p class="hint">0px은 본문을 세로 중앙에 배치합니다.</p>
+      </div>
+      <div class="control-block">
+        <label for="lineHeight">줄 간격 <small>기본 160%</small></label>
+        <div class="pair"><input type="range" id="lineHeight" min="0" max="250" value="160"><input type="number" id="lineHeightNum" min="0" max="250" value="160" aria-label="줄 간격 수치"></div>
+      </div>
+      <div class="control-block">
+        <label for="paragraphSpacing">문단 간격 <small>기본 10px</small></label>
+        <div class="pair">
+          <input type="range" id="paragraphSpacing" min="0" max="120" step="1" value="10" aria-label="문단 간격 슬라이더">
+          <input type="number" id="paragraphSpacingNum" min="0" max="120" step="1" value="10" aria-label="문단 간격 직접 입력">
+        </div>
+        <p class="hint">Enter로 구분한 문단 사이의 간격을 조절합니다.</p>
+      </div>
+      <div class="control-block background-settings">
+        <label for="backgroundMode">본문 배경</label>
+        <select id="backgroundMode" aria-label="배경 유형">
+          <option value="solid">단색</option>
+          <option value="gradient">그라데이션</option>
+        </select>
+        <div class="background-colors">
+          <label class="color-tool background-choice" for="bg"><span id="bgStartLabel">배경색</span><input id="bg" type="color" value="#ffffff"></label>
+          <label class="color-tool background-choice" for="bgEnd" id="gradientEndField" hidden><span>끝 색상</span><input id="bgEnd" type="color" value="#f2e7ff"></label>
+        </div>
+        <label class="gradient-direction" for="gradientAngle" id="gradientDirectionField" hidden>
+          <span>그라데이션 방향</span>
+          <select id="gradientAngle">
+            <option value="90">아래 ↓</option>
+            <option value="270">위 ↑</option>
+            <option value="0">오른쪽 →</option>
+            <option value="180">왼쪽 ←</option>
+            <option value="45" selected>오른쪽 아래 ↘</option>
+            <option value="135">왼쪽 아래 ↙</option>
+            <option value="225">왼쪽 위 ↖</option>
+            <option value="315">오른쪽 위 ↗</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="buttons">
+        <button id="save" class="button-primary" type="button">PNG 다운로드</button>
+        <button id="reset" class="button-subtle" type="button">레이아웃·배경 초기화</button>
+      </div>
+    </section>
+
+    <!-- 결과 미리보기 -->
+    <section class="preview" aria-label="완성본 미리보기">
+      <div class="preview-heading"><div><span class="eyebrow">LIVE PREVIEW</span><h2>완성본 미리보기</h2></div><span class="preview-pill">5 : 3</span></div>
+      <div class="canvasframe"><canvas id="result" width="1600" height="960"></canvas></div>
+      <div class="previewmeta"><span>좌측 640 × 960 · 우측 960 × 960</span><span>PNG · 1600 × 960</span></div>
+      <p id="status" role="status" aria-live="polite"></p>
+      <p class="hint preview-hint">편집 내용은 미리보기에 즉시 반영됩니다. 다운로드가 시작되지 않으면 브라우저의 다운로드 차단 설정을 확인하세요.</p>
+    </section>
+  </main>
+
+  <!-- 이미지 크롭 모달 -->
+  <div class="overlay" id="cropModal" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+    <div class="dialog">
+      <div class="dialoghead"><div><span class="eyebrow">IMAGE EDITOR</span><h2 id="cropTitle">이미지 영역 선택</h2><p>완성본 좌측에 표시할 2:3 비율의 이미지 구간을 지정하세요.</p></div><button class="button-subtle" type="button" id="cropClose" aria-label="닫기">닫기 ×</button></div>
+      <p id="cropLoading" class="hint" aria-live="polite">이미지를 불러오면 선택 영역을 편집할 수 있습니다.</p>
+      <div class="cropArea"><div class="sourceBox" id="sourceBox"><img id="cropSource" alt="업로드한 원본 이미지"><div class="shade" id="cropShade"></div><div class="cropView" id="cropView"><div class="handle" id="cropHandle" aria-label="크롭 영역 크기 조절"></div></div></div></div>
+      <p class="hint">영역을 드래그하여 위치를 옮기거나 우측 하단 모서리에서 크기를 조절하세요. 2:3 비율은 유지됩니다.</p>
+      <div class="cropActions"><button class="button-subtle" type="button" id="cropReset">중앙 자동 맞춤</button><button class="button-primary" type="button" id="cropApply">선택 영역 적용</button></div>
+    </div>
+  </div>
+</body>
+</html>

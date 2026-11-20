@@ -120,6 +120,15 @@ function changeFontSize(){
 let baseFontSize=Number(fontSizeControl.value);
 fontSizeControl.addEventListener('change',()=>{changeFontSize();selectedSizeRange=null});
 fontSizeControl.addEventListener('keydown',e=>{if(e.key==='Enter'){changeFontSize();selectedSizeRange=null;fontSizeControl.blur()}});
+// 터치 환경에서도 키보드 없이 글자 크기를 조절할 수 있도록 합니다.
+for(const [id,delta] of [['fontSizeMinus',-1],['fontSizePlus',1]]){
+ byId(id).addEventListener('click',()=>{
+  selectedSizeRange=activeTextSelection()||(savedRange&&!savedRange.collapsed?savedRange.cloneRange():null);
+  fontSizeControl.value=Math.max(14,Math.min(48,(Number(fontSizeControl.value)||baseFontSize)+delta));
+  changeFontSize();selectedSizeRange=null;
+ });
+}
+
 
 alignMode=['left','center','right','justify'].includes(stored.alignMode)?stored.alignMode:'justify';
 for(const key of Object.keys(globalFormat))globalFormat[key]=!!(stored.globalFormat && stored.globalFormat[key]);
@@ -620,22 +629,48 @@ function draw(){
  if(overflow)byId('status').textContent='글이 영역을 넘쳤어요. 글자 크기·줄 간격·문단 간격을 조절해 주세요.';
  else if(byId('status').textContent.startsWith('글이 영역을 넘쳤어요'))byId('status').textContent='';
 }
-// Desktop: a synchronous data URL click avoids popup blocking and unsupported share APIs.
-// iOS Safari: the same PNG can be opened in a new tab if download is not supported.
-byId('save').addEventListener('click',()=>{
+// 모바일: 공유 시트로 PNG 저장 지원, 미지원 환경에는 이미지를 길게 눌러 저장하도록 표시합니다.
+function showMobileSavePreview(data){
+ const layer=document.createElement('div');layer.className='mobile-save-preview';layer.setAttribute('role','dialog');layer.setAttribute('aria-label','PNG 이미지 저장');
+ const msg=document.createElement('p');msg.textContent='이미지를 길게 눌러 사진에 저장하거나 다운로드하세요.';
+ const img=document.createElement('img');img.src=data;img.alt='완성된 로그 이미지';
+ const close=document.createElement('button');close.type='button';close.textContent='닫기';close.addEventListener('click',()=>layer.remove());
+ layer.append(msg,img,close);document.body.appendChild(layer);
+}
+function pngBlobFromDataURL(data){
+ const binary=atob(data.substring(data.indexOf(',')+1));
+ const bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ return new Blob([bytes],{type:'image/png'});
+}
+byId('save').addEventListener('click',async()=>{
  try {
-   draw();
-   const data=canvas.toDataURL('image/png');
-   const a=document.createElement('a');
-   a.href=data;
-   a.download='No_More_PS_로그.png';
-   document.body.appendChild(a);
-   a.click();
-   a.remove();
-   byId('status').textContent='PNG 다운로드를 요청했습니다. 다운로드 폴더를 확인해 주세요.';
- } catch (error) {
-   byId('status').textContent='PNG 생성 중 오류가 발생했습니다: '+(error.message||error);
- }
+  draw();
+  const data=canvas.toDataURL('image/png');
+  const mobile=/iPad|iPhone|iPod|Android/i.test(navigator.userAgent)||
+   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||
+   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  // iOS Safari는 일반 a.download를 무시하는 경우가 있어 공유 시트를 우선합니다.
+  if(isIOS){
+   const file=new File([pngBlobFromDataURL(data)],'No_More_PS_로그.png',{type:'image/png'});
+   if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    try { await navigator.share({files:[file],title:'로그 PNG 이미지'});return; }
+    catch(error){if(error.name==='AbortError')return;}
+   }
+   showMobileSavePreview(data);
+   byId('status').textContent='이미지를 길게 눌러 저장할 수 있습니다.';
+   return;
+  }
+  const blob=pngBlobFromDataURL(data);
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='No_More_PS_로그.png';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  byId('status').textContent='PNG 다운로드를 요청했습니다. 다운로드 폴더를 확인해 주세요.';
+  // 모바일 브라우저의 다운로드 제한 시 사용할 수 있는 저장 안내
+  if(mobile)byId('status').textContent+=' 저장되지 않으면 브라우저 메뉴에서 다운로드를 확인해 주세요.';
+ }catch(error){byId('status').textContent='PNG 생성 중 오류가 발생했습니다: '+(error.message||error);}
 });
 byId('reset').addEventListener('click',()=>{
  for(const id in defs)byId(id).value=byId(id+'Num').value=defs[id];

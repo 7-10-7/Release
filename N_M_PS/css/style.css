@@ -207,3 +207,23 @@ input[type=number] { min-width:0; width:100%; padding:8px; font-size:12px; borde
 
 /* 문단 간격 조절은 연속 문단 블록에만 적용하고 줄 높이는 별도로 유지 */
 .editor > div, .editor > p { min-height:1em; }
+
+/* 모바일 보완: 글자 크기 +/- 버튼은 좁은 화면에서만 표시 */
+.font-size-controls { display:flex; align-items:center; gap:5px; }
+.font-size-step { display:none; flex:0 0 35px; width:35px; height:35px; border:1px solid #e8dbe9; border-radius:8px; background:white; color:#725d7d; font-size:20px; line-height:1; cursor:pointer; }
+/* 기기별 기본 색상 선택 UI가 타원형으로 늘어나는 현상 방지 */
+.color-tool input[type="color"] { -webkit-appearance:none; appearance:none; box-sizing:border-box; flex:0 0 32px; width:32px; min-width:32px; max-width:32px; height:32px; min-height:32px; max-height:32px; padding:0; border:2px solid #fff; border-radius:50%; overflow:hidden; background:transparent; box-shadow:0 0 0 1px #e8dbe9; }
+.color-tool input[type="color"]::-webkit-color-swatch-wrapper { padding:0; border-radius:50%; }
+.color-tool input[type="color"]::-webkit-color-swatch { border:0; border-radius:50%; }
+.color-tool input[type="color"]::-moz-color-swatch { border:0; border-radius:50%; }
+@media(max-width:600px) {
+  .size-field { width:auto; flex:0 0 auto; }
+  .font-size-step { display:inline-flex; align-items:center; justify-content:center; }
+  .font-size-controls input { width:65px; flex:0 0 65px; font-size:16px; text-align:center; }
+  .color-tool { flex:0 0 auto; }
+}
+/* 모바일 이미지 직접 저장 안내 */
+.mobile-save-preview { position:fixed; inset:0; z-index:10000; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:12px; background:rgba(28,23,33,.92); padding:20px; color:white; text-align:center; }
+.mobile-save-preview img { display:block; width:auto; height:auto; max-width:100%; max-height:70vh; object-fit:contain; -webkit-touch-callout:default; }
+.mobile-save-preview p { font-size:14px; line-height:1.6; }
+.mobile-save-preview button { padding:10px 22px; border:0; border-radius:10px; background:#f1d5e7; color:#563b52; font-weight:bold; }

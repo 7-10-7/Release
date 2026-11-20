@@ -72,7 +72,11 @@
               </label>
               <label class="tool-field size-field" for="fontSize">
                 <span>크기 (px)</span>
-                <input id="fontSize" type="number" min="8" max="48" value="22" inputmode="numeric">
+                <div class="font-size-controls">
+                  <button type="button" id="fontSizeMinus" class="font-size-step" aria-label="글자 크기 줄이기">−</button>
+                  <input id="fontSize" type="number" min="8" max="48" value="22" inputmode="numeric">
+                  <button type="button" id="fontSizePlus" class="font-size-step" aria-label="글자 크기 키우기">+</button>
+                </div>
               </label>
             </div>
             <div class="toolbar-row toolbar-actions">

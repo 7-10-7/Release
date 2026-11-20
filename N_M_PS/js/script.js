@@ -154,11 +154,24 @@ const editor=byId('story');
 if(stored.storyHTML){editor.innerHTML=sanitizeHTML(stored.storyHTML)}else if(stored.story){editor.textContent=stored.story}
 editor.addEventListener('input',()=>{selectedSizeRange=null;draw();persist()});
 let savedRange=null;
-function captureSelection(){const sel=window.getSelection();if(sel&&sel.rangeCount&&editor.contains(sel.anchorNode)&&editor.contains(sel.focusNode))savedRange=sel.isCollapsed?null:sel.getRangeAt(0).cloneRange()}
+function captureSelection(){
+ const sel=window.getSelection();
+ // On iOS the native color picker temporarily collapses the text selection.
+ // Do not erase a real selection just because focus moved to a color control.
+ if(sel && sel.rangeCount && !sel.isCollapsed &&
+    editor.contains(sel.anchorNode) && editor.contains(sel.focusNode)){
+   savedRange=sel.getRangeAt(0).cloneRange();
+ }
+}
 function restoreSelection(){if(!savedRange)return;try{const sel=window.getSelection();sel.removeAllRanges();sel.addRange(savedRange)}catch{}}
 editor.addEventListener('keyup',captureSelection);
 editor.addEventListener('mouseup',captureSelection);
-editor.addEventListener('touchend',()=>setTimeout(captureSelection,100));
+editor.addEventListener('touchend',()=>{
+ // iOS can finish adjusting its selection handles after touchend.
+ requestAnimationFrame(captureSelection);
+ setTimeout(captureSelection,120);
+ setTimeout(captureSelection,350);
+});
 // 선택한 글자의 크기를 크기(px) 입력칸에 실시간으로 표시합니다.
 // CSS 렌더링 크기(.66배)가 아닌 최종 PNG 기준 크기를 표시합니다.
 function updateSelectedFontSize(){
@@ -241,6 +254,11 @@ function beginColorSelection(){
 }
 // 스마트폰에서 pointerdown/touchstart 중 어느 이벤트가 먼저 와도
 // 뒤쪽의 이벤트가 이미 보존한 선택을 지워버리지 않도록 합니다.
+const textColorLabel=textColor.closest('label');
+if(textColorLabel){
+ textColorLabel.addEventListener('pointerdown',()=>{if(!colorSession)beginColorSelection()},{capture:true});
+ textColorLabel.addEventListener('touchstart',()=>{if(!colorSession)beginColorSelection()},{capture:true,passive:true});
+}
 textColor.addEventListener('pointerdown',()=>{if(!colorSession)beginColorSelection()});
 textColor.addEventListener('touchstart',()=>{if(!colorSession)beginColorSelection()},{passive:true});
 textColor.addEventListener('focus',()=>{if(!colorSession)beginColorSelection()});

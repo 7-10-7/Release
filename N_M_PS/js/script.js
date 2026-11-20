@@ -649,7 +649,28 @@ byId('save').addEventListener('click',async()=>{
   draw();
   const data=canvas.toDataURL('image/png');
   if(!data.startsWith('data:image/png'))throw new Error('PNG 변환에 실패했습니다.');
-  downloadPNG(pngBlobFromDataURL(data));
+  const blob=pngBlobFromDataURL(data);
+  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||
+    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(isIOS && navigator.share && navigator.canShare){
+   // 기존 아이폰 저장 기능은 유지하되, 별도 이미지 미리보기 팝업은 만들지 않습니다.
+   const file=new File([blob],'No_More_PS_로그.png',{type:'image/png'});
+   if(navigator.canShare({files:[file]})){
+    try{
+     await navigator.share({files:[file],title:'로그 PNG 이미지'});
+     status.textContent='공유 메뉴에서 이미지 저장을 선택할 수 있어요.';
+    }catch(err){
+     if(err.name==='AbortError'){
+      status.textContent='저장을 취소했어요.';
+     }else{
+      downloadPNG(blob);
+      status.textContent='공유 기능을 사용할 수 없어 PNG 다운로드를 시도했어요.';
+     }
+    }
+    return;
+   }
+  }
+  downloadPNG(blob);
   status.textContent='PNG 다운로드를 요청했습니다. 브라우저 다운로드 목록을 확인하세요.';
  }catch(error){status.textContent='PNG 저장 오류: '+(error.message||String(error));}
 });

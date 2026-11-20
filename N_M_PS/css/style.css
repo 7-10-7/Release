@@ -299,3 +299,15 @@ input[type=number] { min-width:0; width:100%; padding:8px; font-size:12px; borde
   .size-field { width: 155px; flex: 0 0 155px; }
   .font-size-controls input[type="number"] { min-width: 0; width: 60px; flex: 1 1 60px; text-align: center; }
 }
+
+/* 본문 편집창 전용 낮/밤 전환: PNG와 완성본 미리보기에는 적용하지 않음 */
+.editor-theme-toggle {
+  margin-left:auto; flex:0 0 36px; width:36px; height:36px; min-width:36px; min-height:36px;
+  padding:0; display:inline-flex; align-items:center; justify-content:center;
+  border-radius:50%; border:1px solid #e6d4e8; background:#fff; color:#80628c;
+  font-size:21px; line-height:1; cursor:pointer; touch-action:manipulation;
+}
+.editor-theme-toggle[aria-pressed="true"] { background:#28242d; color:#fff4c9; border-color:#44404a; }
+#story.editor.editor-dark { background:#090909; color:#f6f4f7 !important; caret-color:#fff; }
+#story.editor.editor-dark:empty::before { color:#acacb5; }
+#story.editor.editor-dark::selection, #story.editor.editor-dark *::selection { background:#7461ab; color:#fff; }

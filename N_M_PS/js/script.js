@@ -151,6 +151,23 @@ for(const btn of document.querySelectorAll('[data-align]'))btn.addEventListener(
 });
 
 const editor=byId('story');
+// 편집용 테마는 화면 표시만 변경합니다. 본문 서식 / PNG 색상에는 영향이 없습니다.
+const editorThemeToggle=byId('editorThemeToggle');
+let editorDarkMode=false;
+try { editorDarkMode=localStorage.getItem('nmps-editor-theme')==='dark'; } catch {}
+function syncEditorTheme(){
+ editor.classList.toggle('editor-dark',editorDarkMode);
+ editorThemeToggle.setAttribute('aria-pressed',String(editorDarkMode));
+ editorThemeToggle.setAttribute('aria-label',editorDarkMode?'편집창 밝은 모드 켜기':'편집창 어두운 모드 켜기');
+ editorThemeToggle.title=editorDarkMode?'낮 모드':'밤 모드';
+ editorThemeToggle.textContent=editorDarkMode?'☀':'☾';
+}
+editorThemeToggle.addEventListener('click',()=>{
+ editorDarkMode=!editorDarkMode;
+ syncEditorTheme();
+ try { localStorage.setItem('nmps-editor-theme',editorDarkMode?'dark':'light'); } catch {}
+});
+syncEditorTheme();
 // 예전 일반 텍스트 저장본도 그대로 불러와요.
 if(stored.storyHTML){editor.innerHTML=sanitizeHTML(stored.storyHTML)}else if(stored.story){editor.textContent=stored.story}
 editor.addEventListener('input',()=>{selectedSizeRange=null;draw();persist()});

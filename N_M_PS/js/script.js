@@ -634,7 +634,7 @@ function showMobileSavePreview(data){
  const old=document.querySelector('.mobile-save-preview');if(old)old.remove();
  const layer=document.createElement('div');layer.className='mobile-save-preview';
  layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.setAttribute('aria-label','PNG 이미지 저장');
- const msg=document.createElement('p');msg.textContent='아이폰에서는 이미지를 길게 눌러 “사진 앱에 저장”을 선택하세요.';
+ const msg=document.createElement('p');msg.textContent='이미지 다운로드 실패 시, 이미지를 길게 눌러 “사진 앱에 저장”을 선택하세요.';
  const img=document.createElement('img');img.src=data;img.alt='완성된 로그 이미지';
  const open=document.createElement('a');open.href=data;open.target='_blank';open.rel='noopener';open.textContent='이미지 새 탭에서 열기';
  const close=document.createElement('button');close.type='button';close.textContent='닫기';close.addEventListener('click',()=>layer.remove());

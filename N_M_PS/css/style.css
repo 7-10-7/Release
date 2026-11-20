@@ -311,3 +311,60 @@ input[type=number] { min-width:0; width:100%; padding:8px; font-size:12px; borde
 #story.editor.editor-dark { background:#090909; color:#f6f4f7 !important; caret-color:#fff; }
 #story.editor.editor-dark:empty::before { color:#acacb5; }
 #story.editor.editor-dark::selection, #story.editor.editor-dark *::selection { background:#7461ab; color:#fff; }
+
+
+/* 모바일: 서식/정렬/테마 아이콘 크기를 통일하고 줄어들지 않게 고정합니다. */
+@media (max-width: 600px) {
+  .toolbar-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+  .toolbar-actions .tool-group {
+    min-width: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    padding: 3px;
+  }
+  .toolbar-actions .format-button,
+  .toolbar-actions .align-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+    flex: none;
+    font-size: 16px;
+    line-height: 1;
+    border-radius: 7px;
+    touch-action: manipulation;
+  }
+  .toolbar-colors .editor-theme-toggle {
+    flex: 0 0 34px;
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    font-size: 19px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .toolbar-colors .color-tool input[type="color"] {
+    flex: 0 0 34px;
+    width: 34px;
+    min-width: 34px;
+    max-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    border-radius: 50%;
+  }
+}

@@ -156,16 +156,20 @@ const editorThemeToggle=byId('editorThemeToggle');
 let editorDarkMode=false;
 try { editorDarkMode=localStorage.getItem('nmps-editor-theme')==='dark'; } catch {}
 function syncEditorTheme(){
- editor.classList.toggle('editor-dark',editorDarkMode);
- editorThemeToggle.setAttribute('aria-pressed',String(editorDarkMode));
- editorThemeToggle.setAttribute('aria-label',editorDarkMode?'편집창 밝은 모드 켜기':'편집창 어두운 모드 켜기');
- editorThemeToggle.title=editorDarkMode?'낮 모드':'밤 모드';
- editorThemeToggle.textContent=editorDarkMode?'☀':'☾';
+  // 모바일 Safari에서도 스타일이 즉시 반영되도록 편집창에만 테마를 지정합니다.
+  editor.classList.toggle('editor-dark', editorDarkMode);
+  editor.style.setProperty('background-color', editorDarkMode?'#090909':'#ffffff', 'important');
+  editor.style.setProperty('caret-color', editorDarkMode?'#ffffff':'#333333');
+  editorThemeToggle.setAttribute('aria-pressed', String(editorDarkMode));
+  editorThemeToggle.setAttribute('aria-label', editorDarkMode?'편집창 밝은 모드 켜기':'편집창 어두운 모드 켜기');
+  editorThemeToggle.title=editorDarkMode?'낮 모드':'밤 모드';
+  editorThemeToggle.textContent=editorDarkMode?'☀':'☾';
 }
-editorThemeToggle.addEventListener('click',()=>{
- editorDarkMode=!editorDarkMode;
- syncEditorTheme();
- try { localStorage.setItem('nmps-editor-theme',editorDarkMode?'dark':'light'); } catch {}
+editorThemeToggle.addEventListener('click', (event)=>{
+  event.preventDefault();
+  editorDarkMode=!editorDarkMode;
+  syncEditorTheme();
+  try { localStorage.setItem('nmps-editor-theme',editorDarkMode?'dark':'light'); } catch {}
 });
 syncEditorTheme();
 // 예전 일반 텍스트 저장본도 그대로 불러와요.

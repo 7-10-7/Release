@@ -90,7 +90,8 @@ function syncBackgroundControls(){
 byId('backgroundMode').addEventListener('change',()=>{syncBackgroundControls();draw();persist()});
 byId('gradientAngle').addEventListener('change',()=>{draw();persist()});
 syncBackgroundControls();
-byId('ink').value=colorsMigrated && /^#[0-9a-f]{6}$/i.test(stored.ink||'')?stored.ink:DEFAULT_COLORS.ink;
+let baseInkColor=colorsMigrated && /^#[0-9a-f]{6}$/i.test(stored.ink||'')?stored.ink:DEFAULT_COLORS.ink;
+byId('ink').value=baseInkColor;
 const fontSizeControl=byId('fontSize');
 fontSizeControl.value=Number.isFinite(Number(stored.fontSize)) && stored.fontSize != null ? Math.max(14,Math.min(48,Number(stored.fontSize))):22;
 // 글자를 드래그한 상태로 크기를 입력하면 그 부분만 변경합니다.
@@ -139,8 +140,8 @@ function syncEditorStyles(){
  editor.style.lineHeight=Number(byId('lineHeight').value)/100;
  editor.style.setProperty('--editor-paragraph-gap',Number(byId('paragraphSpacing').value)*.66+'px');
  editor.style.textAlign=alignMode;
- editor.style.color=byId('ink').value;
- editor.style.fontWeight = globalFormat.bold ? '600' : '400';
+ editor.style.color=baseInkColor;
+ editor.style.fontWeight = globalFormat.bold ? 'bold' : 'normal';
  editor.style.fontStyle=globalFormat.italic?'italic':'normal';
  editor.style.textDecoration=globalFormat.underline?'underline':'none';
  for(const btn of document.querySelectorAll('[data-align]'))btn.setAttribute('aria-pressed',String(btn.dataset.align===alignMode));
@@ -169,8 +170,8 @@ editor.addEventListener('mouseup',captureSelection);
 editor.addEventListener('touchend',()=>{
  // iOS can finish adjusting its selection handles after touchend.
  requestAnimationFrame(captureSelection);
- setTimeout(captureSelection,120);
- setTimeout(captureSelection,350);
+ setTimeout(()=>{captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets},120);
+ setTimeout(()=>{captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets},350);
 });
 // 선택한 글자의 크기를 크기(px) 입력칸에 실시간으로 표시합니다.
 // CSS 렌더링 크기(.66배)가 아닌 최종 PNG 기준 크기를 표시합니다.
@@ -194,7 +195,9 @@ function updateSelectedFontSize(){
 document.addEventListener('selectionchange',()=>{
  const sel=window.getSelection();
  if(sel && editor.contains(sel.anchorNode)){
-  captureSelection();updateToolbar();updateSelectedFontSize();
+  if(sel.isCollapsed && !colorSession){lastSelectionOffsets=null;savedRange=null;}
+  else {captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets;}
+  updateToolbar();updateSelectedFontSize();
  }else if(document.activeElement!==fontSizeControl){
   fontSizeControl.value=baseFontSize;
  }
@@ -236,88 +239,84 @@ for(const btn of document.querySelectorAll('[data-format]')){
  btn.addEventListener('touchstart',captureSelection,{passive:true});
  btn.addEventListener('click',()=>applyFormat(btn.dataset.format));
 }
-// 한 개의 글자색 도구: 색상 선택기를 여는 순간의 드래그 영역을 보존합니다.
-// iOS는 기본 색상 선택기를 여는 순간 선택 표시를 해제하므로,
-// picker가 열린 동안은 "선택 영역"인지 "본문 전체"인지 고정합니다.
+// 글자색은 본문 기본색과 선택 영역의 색상을 반드시 분리합니다.
+// iOS 색상 선택기를 열면 DOM Selection이 사라지므로 글자 단위 좌표로 보관합니다.
 const textColor = byId('ink');
-let colorRange = null;
-let colorSession = null;
-function validColorSelection(range){
- return !!(range && !range.collapsed && editor.contains(range.commonAncestorContainer));
+let colorSession = null; // {mode:'selection'|'all', start, end}
+let lastSelectionOffsets = null;
+let colorTouchedAt = 0;
+function selectionOffsets(range){
+ if(!range||range.collapsed||!editor.contains(range.commonAncestorContainer))return null;
+ const model=readStyledSelection(range);
+ if(!model||!Number.isInteger(model.start)||!Number.isInteger(model.end)||model.end<=model.start)return null;
+ return {start:model.start,end:model.end};
 }
+function takeCurrentSelectionOffsets(){return selectionOffsets(activeTextSelection());}
 function beginColorSelection(){
- const active = activeTextSelection();
- const previous = validColorSelection(savedRange) ? savedRange.cloneRange() : null;
- const range = active || previous;
- colorRange = validColorSelection(range) ? range.cloneRange() : null;
- colorSession = colorRange ? 'selection' : 'all';
+ if(colorSession)return;
+ const chosen=takeCurrentSelectionOffsets() || lastSelectionOffsets;
+ colorSession=chosen?{mode:'selection',...chosen}:{mode:'all'};
+ colorTouchedAt=Date.now();
 }
-// 스마트폰에서 pointerdown/touchstart 중 어느 이벤트가 먼저 와도
-// 뒤쪽의 이벤트가 이미 보존한 선택을 지워버리지 않도록 합니다.
 const textColorLabel=textColor.closest('label');
 if(textColorLabel){
- textColorLabel.addEventListener('pointerdown',()=>{if(!colorSession)beginColorSelection()},{capture:true});
- textColorLabel.addEventListener('touchstart',()=>{if(!colorSession)beginColorSelection()},{capture:true,passive:true});
+ textColorLabel.addEventListener('pointerdown',beginColorSelection,{capture:true});
+ textColorLabel.addEventListener('touchstart',beginColorSelection,{capture:true,passive:true});
 }
-textColor.addEventListener('pointerdown',()=>{if(!colorSession)beginColorSelection()});
-textColor.addEventListener('touchstart',()=>{if(!colorSession)beginColorSelection()},{passive:true});
-textColor.addEventListener('focus',()=>{if(!colorSession)beginColorSelection()});
+textColor.addEventListener('pointerdown',beginColorSelection);
+textColor.addEventListener('touchstart',beginColorSelection,{passive:true});
+textColor.addEventListener('focus',beginColorSelection);
 function applyTextColor(color){
  if(!/^#[0-9a-fA-F]{6}$/.test(color))return;
  if(!colorSession)beginColorSelection();
- if(colorSession==='selection'){
-   if(!validColorSelection(colorRange)){
-     byId('status').textContent='선택한 글자를 찾지 못했습니다. 다시 드래그해 주세요.';
-     return;
+ if(colorSession.mode==='selection'){
+   const model=parseStyledText();
+   const {start,end}=colorSession;
+   if(start<0||end>model.total||end<=start){
+     byId('status').textContent='선택 위치가 변경되었습니다. 다시 드래그해 주세요.';return;
    }
-   try {
-     const range=colorRange.cloneRange();
-     const span=document.createElement('span');
-     span.style.color=color;
-     span.appendChild(range.extractContents());
-     range.insertNode(span);
-     // 색상 선택 창 안에서 여러 번 색을 움직여도 같은 글자에 적용합니다.
-     const next=document.createRange();
-     next.selectNodeContents(span);
-     colorRange=next.cloneRange();
-     byId('status').textContent='선택한 글자의 색상이 변경되었습니다.';
-   } catch(error) {
-     byId('status').textContent='색상 변경에 실패했습니다. 다시 드래그해 주세요.';
-     return;
+   for(const p of model.paras)for(const r of p.runs){
+     r._pieces=[...r.text].map((text,i)=>{
+       const position=r.start+i;
+       return {...r,text,position,color:position>=start&&position<end?color:r.color};
+     });
    }
- } else {
-   // 드래그가 없으면 기존 부분 색상까지 덮어써 본문 전체 색상을 통일합니다.
+   // 선택을 다시 만들지 않아 iOS의 색상 선택창과 충돌하지 않습니다.
+   renderStyledModel(model,null);
+   byId('status').textContent='선택한 글자의 색상이 변경되었습니다.';
+ }else{
+   baseInkColor=color;
+   // 전체 색상 적용 시 기존의 부분 색상만 제거하고 다른 서식은 보존합니다.
    for(const el of editor.querySelectorAll('[style]')){
      if(el.style.color){
        el.style.removeProperty('color');
        if(!el.getAttribute('style')?.trim())el.removeAttribute('style');
      }
    }
-   syncEditorStyles();
+   syncEditorStyles();draw();persist();
    byId('status').textContent='본문 전체 글자색을 변경했습니다.';
  }
- draw();persist();
 }
 function finishColorSelection(){
  colorSession=null;
- colorRange=null;
+ lastSelectionOffsets=null;
  savedRange=null;
  formattingRange=null;
  selectedSizeRange=null;
- // 이전 글자가 계속 선택된 것으로 처리되지 않도록 선택을 확실히 해제합니다.
- const sel=window.getSelection();
- if(sel)sel.removeAllRanges();
- updateToolbar();
- updateSelectedFontSize();
+ const selection=window.getSelection();
+ if(selection)selection.removeAllRanges();
+ updateToolbar();updateSelectedFontSize();
 }
 textColor.addEventListener('input',()=>applyTextColor(textColor.value));
 textColor.addEventListener('change',()=>{
  applyTextColor(textColor.value);
  finishColorSelection();
 });
-// 편집기로 돌아와 탭/클릭하면 이전 색상 선택 영역이 이어지지 않습니다.
+// 편집창을 다시 터치하면 기존 범위를 버려 과거 드래그에 고정되지 않게 합니다.
 editor.addEventListener('pointerdown',()=>{
- colorSession=null;colorRange=null;savedRange=null;
+ colorSession=null; // 색상 선택을 취소한 뒤 다시 편집하는 경우도 초기화
+ lastSelectionOffsets=null;
+ savedRange=null;
  formattingRange=null;
 });
 // 선택 영역은 브라우저의 removeFormat으로 경계 노드를 먼저 분리한 뒤 인라인 스타일도 지웁니다.
@@ -416,7 +415,7 @@ function stripInlineFormats(root){
  }
 }
 function refreshAfterFormatClear(message){
- savedRange=null;formattingRange=null;colorRange=null;
+ savedRange=null;formattingRange=null;lastSelectionOffsets=null;
  syncEditorStyles();updateToolbar();draw();persist();
  byId('status').textContent=message;
 }
@@ -442,7 +441,7 @@ byId('clearAllFormat').addEventListener('click',()=>{
  stripInlineFormats(editor);
  for(const key of Object.keys(globalFormat))globalFormat[key]=false;
  baseFontFamily='sans';byId('fontFamily').value=baseFontFamily;
- byId('ink').value=DEFAULT_COLORS.ink;
+ baseInkColor=DEFAULT_COLORS.ink;byId('ink').value=baseInkColor;
  refreshAfterFormatClear('본문 전체의 글자 서식을 해제했습니다.');
 });
 // 형광펜 지우기는 선택 영역 여부와 무관하게 본문 전체의 형광펜만 지웁니다.
@@ -462,7 +461,7 @@ byId('clearHighlight').addEventListener('click',()=>{
  // 중첩된 투명 형광펜 래퍼도 더 이상 필요하지 않습니다.
  refreshAfterFormatClear('본문 전체의 형광펜을 지웠습니다.');
 });
-function persist(){try{const s={centerVersion:1,fontMenuVersion:2,colorDefaultsVersion:1,storyHTML:sanitizeHTML(editor.innerHTML),fontFamily:baseFontFamily,baseFontFamily,fontSize:baseFontSize,alignMode,globalFormat:{...globalFormat},spacingDefaultsVersion:2,backgroundMode:byId('backgroundMode').value,gradientAngle:Number(byId('gradientAngle').value),bgEnd:byId('bgEnd').value};for(const id in defs)s[id]=Number(byId(id).value);for(const id of ['bg','ink'])s[id]=byId(id).value;localStorage.setItem('log-maker-settings',JSON.stringify(s))}catch{}}
+function persist(){try{const s={centerVersion:1,fontMenuVersion:2,colorDefaultsVersion:1,storyHTML:sanitizeHTML(editor.innerHTML),fontFamily:baseFontFamily,baseFontFamily,fontSize:baseFontSize,alignMode,globalFormat:{...globalFormat},spacingDefaultsVersion:2,backgroundMode:byId('backgroundMode').value,gradientAngle:Number(byId('gradientAngle').value),bgEnd:byId('bgEnd').value};for(const id in defs)s[id]=Number(byId(id).value);s.bg=byId('bg').value;s.ink=baseInkColor;localStorage.setItem('log-maker-settings',JSON.stringify(s))}catch{}}
 function initialCrop(){if(!photo)return;const w=photo.naturalWidth,h=photo.naturalHeight;let cw=w,ch=w/ASPECT;if(ch>h){ch=h;cw=h*ASPECT}crop={x:(w-cw)/2,y:(h-ch)/2,w:cw,h:ch};positionCrop()}
 function positionCrop(){if(!photo||!crop)return;const w=photo.naturalWidth,h=photo.naturalHeight;Object.assign(byId('cropView').style,{left:100*crop.x/w+'%',top:100*crop.y/h+'%',width:100*crop.w/w+'%',height:100*crop.h/h+'%'})}
 function showCrop(){if(!photo)return;byId('cropModal').classList.add('open');byId('editCrop').disabled=false;requestAnimationFrame(positionCrop)}
@@ -507,7 +506,7 @@ for(const type of ['pointerup','pointercancel','lostpointercapture'])byId('cropV
 function getParagraphs(){
  return parseStyledText().paras;
 }
-function parseStyledText(){
+function parseStyledText(root=editor){
  const paras=[{runs:[]}];
  let count=0, startMarker=null,endMarker=null;
  const current=()=>paras[paras.length-1];
@@ -558,27 +557,39 @@ function parseStyledText(){
   if(block&&node.nextSibling)newline();
  }
  const flags={...globalFormat,strike:false,color:null,highlight:null,fontFamily:baseFontFamily};
- for(const n of [...editor.childNodes])visit(n,flags);
+ for(const n of [...root.childNodes])visit(n,flags);
  // contenteditable often leaves a trailing <br> in otherwise empty blocks.
  // Keep the original authored newline structure whenever possible.
  return {paras,total:count,start:startMarker,end:endMarker};
 }
+// 선택 좌표 계산은 원본 편집 DOM을 절대 수정하지 않습니다.
+// 마커를 복제본에만 삽입하므로 iOS의 선택 핸들이 튀거나 사라지지 않습니다.
 function readStyledSelection(range){
  if(!range)return parseStyledText();
  try{
-  const r=range.cloneRange();
+  const clone=editor.cloneNode(true);
+  const pathTo=(node)=>{
+   const path=[];
+   while(node!==editor){
+    const parent=node.parentNode;if(!parent)return null;
+    path.unshift(Array.prototype.indexOf.call(parent.childNodes,node));node=parent;
+   }
+   return path;
+  };
+  const resolve=(path)=>path.reduce((node,index)=>node?.childNodes[index],clone);
+  const startPath=pathTo(range.startContainer),endPath=pathTo(range.endContainer);
+  if(!startPath||!endPath)return null;
+  const startNode=resolve(startPath),endNode=resolve(endPath);
+  if(!startNode||!endNode)return null;
+  const copyRange=document.createRange();
+  copyRange.setStart(startNode,Math.min(range.startOffset,startNode.nodeType===Node.TEXT_NODE?startNode.length:startNode.childNodes.length));
+  copyRange.setEnd(endNode,Math.min(range.endOffset,endNode.nodeType===Node.TEXT_NODE?endNode.length:endNode.childNodes.length));
   const end=document.createElement('span'),start=document.createElement('span');
   end.dataset.selectionMarker='end';start.dataset.selectionMarker='start';
-  const endRange=r.cloneRange();endRange.collapse(false);endRange.insertNode(end);
-  const startRange=r.cloneRange();startRange.collapse(true);startRange.insertNode(start);
-  const model=parseStyledText();
-  start.remove();end.remove();
-  // Text node splitting during marker insertion is expected; no text is lost.
-  return model;
- }catch(error){
-  editor.querySelectorAll('[data-selection-marker]').forEach(n=>n.remove());
-  return null;
- }
+  const endRange=copyRange.cloneRange();endRange.collapse(false);endRange.insertNode(end);
+  const startRange=copyRange.cloneRange();startRange.collapse(true);startRange.insertNode(start);
+  return parseStyledText(clone);
+ }catch{return null;}
 }
 function renderStyledModel(model,restore){
  const frag=document.createDocumentFragment();
@@ -591,7 +602,7 @@ function renderStyledModel(model,restore){
    let j=i+1;
    while(j<pieces.length&&['bold','italic','underline','strike','color','highlight','fontFamily','size'].every(k=>pieces[j][k]===a[k]))j++;
    const span=document.createElement('span');
-   span.style.fontWeight=a.bold?'600':'400';span.style.fontStyle=a.italic?'italic':'normal';
+   span.style.fontWeight=a.bold?'bold':'normal';span.style.fontStyle=a.italic?'italic':'normal';
    span.style.textDecoration=[a.underline?'underline':'',a.strike?'line-through':''].filter(Boolean).join(' ')||'none';
    if(a.color)span.style.color=a.color;
    if(a.highlight)span.style.backgroundColor=a.highlight;
@@ -612,7 +623,7 @@ function renderStyledModel(model,restore){
  }
  editor.replaceChildren(frag);
  for(const key of Object.keys(globalFormat))globalFormat[key]=false;
- savedRange=null;formattingRange=null;colorRange=null;
+ savedRange=null;formattingRange=null;lastSelectionOffsets=null;
  syncEditorStyles();
  if(restore&&newStart&&newEnd){
   const range=document.createRange();range.setStart(newStart.node,newStart.offset);range.setEnd(newEnd.node,newEnd.offset);
@@ -673,7 +684,7 @@ function draw(){
     for(let i=0;i<line.length;i++){
       const ch=line[i];setupFont(ch,size);const m=ctx.measureText(ch.text),cw=m.width;
       if(ch.highlight){ctx.fillStyle=ch.highlight;ctx.fillRect(pen,y,cw+(gapSet.has(i)?perGap:0),lineHeightPx)}
-      ctx.fillStyle=ch.color||byId('ink').value;ctx.fillText(ch.text,pen,y);
+      ctx.fillStyle=ch.color||baseInkColor;ctx.fillText(ch.text,pen,y);
       if(ch.underline){ctx.fillRect(pen,y+size*1.03,cw,Math.max(1,size*.045))}
       if(ch.strike){ctx.fillRect(pen,y+size*.52,cw,Math.max(1,size*.045))}
       pen+=cw+(gapSet.has(i)?perGap:0)
@@ -737,12 +748,13 @@ byId('save').addEventListener('click',async()=>{
 });
 byId('reset').addEventListener('click',()=>{
  for(const id in defs)byId(id).value=byId(id+'Num').value=defs[id];
- for(const id of ['ink','bg','bgEnd'])byId(id).value=DEFAULT_COLORS[id];
+ for(const id of ['bg','bgEnd'])byId(id).value=DEFAULT_COLORS[id];
+ baseInkColor=DEFAULT_COLORS.ink;byId('ink').value=baseInkColor;
  byId('backgroundMode').value=DEFAULT_BACKGROUND.mode;
  byId('gradientAngle').value=String(DEFAULT_BACKGROUND.angle);
  for(const key of Object.keys(globalFormat))globalFormat[key]=false;
  syncBackgroundControls();updateToolbar();
- colorRange=null;syncEditorStyles();draw();persist();
+ colorSession=null;lastSelectionOffsets=null;syncEditorStyles();draw();persist();
 });
 syncEditorStyles();updateToolbar();
 if(document.fonts?.ready)document.fonts.ready.then(draw);draw();

@@ -223,47 +223,85 @@ for(const btn of document.querySelectorAll('[data-format]')){
  btn.addEventListener('touchstart',captureSelection,{passive:true});
  btn.addEventListener('click',()=>applyFormat(btn.dataset.format));
 }
-// 하나의 글자색 선택기: 선택된 글자만 변경, 선택 없으면 본문 기본색 변경.
+// 한 개의 글자색 도구: 색상 선택기를 여는 순간의 드래그 영역을 보존합니다.
+// iOS는 기본 색상 선택기를 여는 순간 선택 표시를 해제하므로,
+// picker가 열린 동안은 "선택 영역"인지 "본문 전체"인지 고정합니다.
 const textColor = byId('ink');
 let colorRange = null;
-function saveColorSelection(){
- const sel=window.getSelection();
- if(sel && sel.rangeCount && !sel.isCollapsed && editor.contains(sel.anchorNode) && editor.contains(sel.focusNode)) {
-   colorRange=sel.getRangeAt(0).cloneRange();
- } else {
-   colorRange=null;
- }
+let colorSession = null;
+function validColorSelection(range){
+ return !!(range && !range.collapsed && editor.contains(range.commonAncestorContainer));
 }
-textColor.addEventListener('pointerdown',saveColorSelection);
-textColor.addEventListener('touchstart',saveColorSelection,{passive:true});
-textColor.addEventListener('focus',()=>{if(!colorRange)saveColorSelection()});
+function beginColorSelection(){
+ const active = activeTextSelection();
+ const previous = validColorSelection(savedRange) ? savedRange.cloneRange() : null;
+ const range = active || previous;
+ colorRange = validColorSelection(range) ? range.cloneRange() : null;
+ colorSession = colorRange ? 'selection' : 'all';
+}
+// 스마트폰에서 pointerdown/touchstart 중 어느 이벤트가 먼저 와도
+// 뒤쪽의 이벤트가 이미 보존한 선택을 지워버리지 않도록 합니다.
+textColor.addEventListener('pointerdown',()=>{if(!colorSession)beginColorSelection()});
+textColor.addEventListener('touchstart',()=>{if(!colorSession)beginColorSelection()},{passive:true});
+textColor.addEventListener('focus',()=>{if(!colorSession)beginColorSelection()});
 function applyTextColor(color){
  if(!/^#[0-9a-fA-F]{6}$/.test(color))return;
- if(colorRange && !colorRange.collapsed && editor.contains(colorRange.commonAncestorContainer)) {
+ if(!colorSession)beginColorSelection();
+ if(colorSession==='selection'){
+   if(!validColorSelection(colorRange)){
+     byId('status').textContent='선택한 글자를 찾지 못했습니다. 다시 드래그해 주세요.';
+     return;
+   }
    try {
      const range=colorRange.cloneRange();
      const span=document.createElement('span');
      span.style.color=color;
      span.appendChild(range.extractContents());
      range.insertNode(span);
-     const next=document.createRange();next.selectNodeContents(span);
-     const selection=window.getSelection();selection.removeAllRanges();selection.addRange(next);
-     savedRange=next.cloneRange();colorRange=next.cloneRange();
+     // 색상 선택 창 안에서 여러 번 색을 움직여도 같은 글자에 적용합니다.
+     const next=document.createRange();
+     next.selectNodeContents(span);
+     colorRange=next.cloneRange();
      byId('status').textContent='선택한 글자의 색상이 변경되었습니다.';
    } catch(error) {
-     byId('status').textContent='선택 영역의 색상을 변경하지 못했습니다. 다시 선택해 주세요.';
+     byId('status').textContent='색상 변경에 실패했습니다. 다시 드래그해 주세요.';
      return;
    }
  } else {
-   // 선택된 부분이 없으면 기존 기본색을 갱신합니다.
-   colorRange=null;
+   // 드래그가 없으면 기존 부분 색상까지 덮어써 본문 전체 색상을 통일합니다.
+   for(const el of editor.querySelectorAll('[style]')){
+     if(el.style.color){
+       el.style.removeProperty('color');
+       if(!el.getAttribute('style')?.trim())el.removeAttribute('style');
+     }
+   }
    syncEditorStyles();
-   byId('status').textContent='본문 기본 글자색을 변경했습니다.';
+   byId('status').textContent='본문 전체 글자색을 변경했습니다.';
  }
  draw();persist();
 }
+function finishColorSelection(){
+ colorSession=null;
+ colorRange=null;
+ savedRange=null;
+ formattingRange=null;
+ selectedSizeRange=null;
+ // 이전 글자가 계속 선택된 것으로 처리되지 않도록 선택을 확실히 해제합니다.
+ const sel=window.getSelection();
+ if(sel)sel.removeAllRanges();
+ updateToolbar();
+ updateSelectedFontSize();
+}
 textColor.addEventListener('input',()=>applyTextColor(textColor.value));
-textColor.addEventListener('change',()=>applyTextColor(textColor.value));
+textColor.addEventListener('change',()=>{
+ applyTextColor(textColor.value);
+ finishColorSelection();
+});
+// 편집기로 돌아와 탭/클릭하면 이전 색상 선택 영역이 이어지지 않습니다.
+editor.addEventListener('pointerdown',()=>{
+ colorSession=null;colorRange=null;savedRange=null;
+ formattingRange=null;
+});
 // 선택 영역은 브라우저의 removeFormat으로 경계 노드를 먼저 분리한 뒤 인라인 스타일도 지웁니다.
 // 전체 해제는 문단과 줄바꿈을 유지한 채 본문 내 서식을 모두 제거합니다.
 // 이벤트는 폰트/형광펜의 선택 영역 기억 함수가 선언된 이후에 등록합니다.

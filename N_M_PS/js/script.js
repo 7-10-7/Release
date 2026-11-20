@@ -629,17 +629,6 @@ function draw(){
  if(overflow)byId('status').textContent='글이 영역을 넘쳤어요. 글자 크기·줄 간격·문단 간격을 조절해 주세요.';
  else if(byId('status').textContent.startsWith('글이 영역을 넘쳤어요'))byId('status').textContent='';
 }
-// 모바일 Safari는 download 속성이 무시될 수 있어 공유/이미지 보기를 함께 제공합니다.
-function showMobileSavePreview(data){
- const old=document.querySelector('.mobile-save-preview');if(old)old.remove();
- const layer=document.createElement('div');layer.className='mobile-save-preview';
- layer.setAttribute('role','dialog');layer.setAttribute('aria-modal','true');layer.setAttribute('aria-label','PNG 이미지 저장');
- const msg=document.createElement('p');msg.textContent='아이폰에서는 이미지를 길게 눌러 “사진 앱에 저장”을 선택하세요.';
- const img=document.createElement('img');img.src=data;img.alt='완성된 로그 이미지';
- const open=document.createElement('a');open.href=data;open.target='_blank';open.rel='noopener';open.textContent='이미지 새 탭에서 열기';
- const close=document.createElement('button');close.type='button';close.textContent='닫기';close.addEventListener('click',()=>layer.remove());
- layer.append(msg,img,open,close);document.body.appendChild(layer);
-}
 function pngBlobFromDataURL(data){
  const binary=atob(data.substring(data.indexOf(',')+1));
  const bytes=new Uint8Array(binary.length);
@@ -660,21 +649,6 @@ byId('save').addEventListener('click',async()=>{
   draw();
   const data=canvas.toDataURL('image/png');
   if(!data.startsWith('data:image/png'))throw new Error('PNG 변환에 실패했습니다.');
-  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||
-    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  if(isIOS){
-   // 먼저 이미지 화면을 보여 줍니다. 공유가 실패하더라도 저장할 수 있도록 합니다.
-   showMobileSavePreview(data);
-   status.textContent='저장 화면을 열었습니다. 이미지를 길게 눌러 저장할 수 있어요.';
-   if(navigator.share && navigator.canShare){
-    const file=new File([pngBlobFromDataURL(data)],'No_More_PS_로그.png',{type:'image/png'});
-    if(navigator.canShare({files:[file]})){
-     try{await navigator.share({files:[file],title:'로그 PNG 이미지'});document.querySelector('.mobile-save-preview')?.remove();status.textContent='공유 메뉴가 열렸습니다.';}
-     catch(err){if(err.name!=='AbortError')status.textContent='공유 메뉴를 열지 못했습니다. 표시된 이미지를 길게 눌러 저장하세요.';}
-    }
-   }
-   return;
-  }
   downloadPNG(pngBlobFromDataURL(data));
   status.textContent='PNG 다운로드를 요청했습니다. 브라우저 다운로드 목록을 확인하세요.';
  }catch(error){status.textContent='PNG 저장 오류: '+(error.message||String(error));}

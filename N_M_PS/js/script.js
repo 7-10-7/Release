@@ -178,7 +178,7 @@ if(stored.storyHTML){editor.innerHTML=sanitizeHTML(stored.storyHTML)}else if(sto
 let editorComposing=false;
 editor.addEventListener('compositionstart',()=>{editorComposing=true});
 editor.addEventListener('compositionend',()=>{editorComposing=false;scheduleEditorHistory()});
-editor.addEventListener('input',()=>{selectedSizeRange=null;draw();persist();if(!editorComposing)scheduleEditorHistory()});
+editor.addEventListener('input',()=>{retainedColorTarget=null;selectedSizeRange=null;draw();persist();if(!editorComposing)scheduleEditorHistory()});
 let savedRange=null;
 function captureSelection(){
  const sel=window.getSelection();
@@ -221,7 +221,7 @@ document.addEventListener('selectionchange',()=>{
  const sel=window.getSelection();
  if(sel && editor.contains(sel.anchorNode)){
   if(sel.isCollapsed && !colorSession){lastSelectionOffsets=null;savedRange=null;}
-  else if(!sel.isCollapsed && !colorSession){captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets();}
+  else if(!sel.isCollapsed && !colorSession){captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets();retainedColorTarget=lastSelectionOffsets?{...lastSelectionOffsets}:null;}
   updateToolbar();updateSelectedFontSize();
  }else if(document.activeElement!==fontSizeControl){
   fontSizeControl.value=baseFontSize;
@@ -271,6 +271,9 @@ const textColor=byId('ink');
 let colorSession=null;
 let lastSelectionOffsets=null;
 let colorSessionChanged=false;
+// Keep the last explicitly selected text as the recolor target while the user
+// changes colors repeatedly. Only a new editor interaction releases it.
+let retainedColorTarget=null;
 function selectionOffsets(range){
  if(!range||range.collapsed||!editor.contains(range.commonAncestorContainer))return null;
  const model=readStyledSelection(range);
@@ -281,7 +284,8 @@ function takeCurrentSelectionOffsets(){return selectionOffsets(activeTextSelecti
 function beginColorSelection(){
  if(colorSession)return;
  // 명시적으로 선택한 영역만 우선합니다. 과거에 저장된 DOM Range는 사용하지 않습니다.
- const chosen=takeCurrentSelectionOffsets() || lastSelectionOffsets;
+ const chosen=takeCurrentSelectionOffsets() || lastSelectionOffsets || retainedColorTarget;
+ if(chosen)retainedColorTarget={...chosen};
  colorSession=chosen?{mode:'selection',...chosen}:{mode:'all'};
  colorSessionChanged=false;
 }
@@ -327,6 +331,13 @@ function applyTextColor(color){
 }
 function finishColorSelection(){
  if(colorSessionChanged)recordEditorHistory();
+ // Removing the native highlight must not discard the explicit recolor target.
+ // Otherwise the second color-picker visit incorrectly changes all text.
+ if(colorSession?.mode==='selection'){
+   retainedColorTarget={start:colorSession.start,end:colorSession.end};
+ }else{
+   retainedColorTarget=null;
+ }
  colorSession=null;
  colorSessionChanged=false;
  lastSelectionOffsets=null;
@@ -354,7 +365,7 @@ textColor.addEventListener('click',()=>{
 editor.addEventListener('pointerdown',()=>{
  if(colorSessionChanged)recordEditorHistory();
  colorSessionChanged=false;
- colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
+ colorSession=null;retainedColorTarget=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
 });
 // 선택 영역은 브라우저의 removeFormat으로 경계 노드를 먼저 분리한 뒤 인라인 스타일도 지웁니다.
 // 전체 해제는 문단과 줄바꿈을 유지한 채 본문 내 서식을 모두 제거합니다.
@@ -550,7 +561,7 @@ function restoreEditorSnapshot(snapshot){
   byId('ink').value=baseInkColor;
   byId('fontFamily').value=baseFontFamily;
   fontSizeControl.value=baseFontSize;
-  colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
+  colorSession=null;retainedColorTarget=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
   const sel=window.getSelection();sel?.removeAllRanges();
   syncEditorStyles();updateToolbar();draw();persist();
  } finally {restoringEditorHistory=false;updateEditorHistoryButtons();}
@@ -574,7 +585,7 @@ byId('editorClearText').addEventListener('click',()=>{
  if(editorHistoryTimer){clearTimeout(editorHistoryTimer);editorHistoryTimer=null;recordEditorHistory();}
  editor.replaceChildren();
  const sel=window.getSelection();sel?.removeAllRanges();
- colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
+ colorSession=null;retainedColorTarget=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
  updateToolbar();draw();persist();recordEditorHistory();
  byId('status').textContent='본문 전체를 삭제했습니다. 실행 취소로 복구할 수 있어요.';
 });

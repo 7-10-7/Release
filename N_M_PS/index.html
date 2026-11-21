@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&display=swap">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Nanum+Gothic&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-  <link rel="stylesheet" href="css/style.css?v=mobile-theme-20261121b">
-  <script src="js/script.js?v=mobile-theme-20261121b" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=editor-stability-20261121c">
+  <script src="js/script.js?v=editor-stability-20261121c" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a" aria-hidden="true"></div>
@@ -99,6 +99,11 @@
               <button type="button" id="clearHighlight" class="tool-clear">형광펜 지우기</button>
               <button type="button" id="clearFormat" class="tool-clear">선택 서식 해제</button>
               <button type="button" id="clearAllFormat" class="tool-clear">전체 선택 서식 해제</button>
+              <div class="editor-history" role="group" aria-label="편집 이력과 본문 관리">
+                <button type="button" id="editorUndo" class="tool-clear editor-history-button" aria-label="실행 취소" title="실행 취소 (Ctrl+Z)" disabled>↶</button>
+                <button type="button" id="editorRedo" class="tool-clear editor-history-button" aria-label="다시 실행" title="다시 실행 (Ctrl+Y)" disabled>↷</button>
+                <button type="button" id="editorClearText" class="tool-clear editor-delete-button" aria-label="본문 전체 삭제">전체 글 삭제</button>
+              </div>
               <button type="button" id="editorThemeToggle" class="editor-theme-toggle" aria-label="편집창 어두운 모드 켜기" aria-pressed="false" title="편집창 낮/밤 전환">☾</button>
             </div>
           </div>

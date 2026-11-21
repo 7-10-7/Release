@@ -99,6 +99,7 @@ let selectedSizeRange=null;
 fontSizeControl.addEventListener('pointerdown',()=>{selectedSizeRange=activeTextSelection()||(savedRange&&!savedRange.collapsed?savedRange.cloneRange():null)});
 fontSizeControl.addEventListener('focus',()=>{if(!selectedSizeRange)selectedSizeRange=activeTextSelection()||(savedRange&&!savedRange.collapsed?savedRange.cloneRange():null)});
 function changeFontSize(){
+ flushPendingEditorHistory();
  const size=Math.max(14,Math.min(48,Number(fontSizeControl.value)||22));
  const range=selectedSizeRange&&editor.contains(selectedSizeRange.commonAncestorContainer)?selectedSizeRange:null;
  if(range&&!range.collapsed){
@@ -174,7 +175,10 @@ editorThemeToggle.addEventListener('click', (event)=>{
 syncEditorTheme();
 // 예전 일반 텍스트 저장본도 그대로 불러와요.
 if(stored.storyHTML){editor.innerHTML=sanitizeHTML(stored.storyHTML)}else if(stored.story){editor.textContent=stored.story}
-editor.addEventListener('input',()=>{selectedSizeRange=null;draw();persist()});
+let editorComposing=false;
+editor.addEventListener('compositionstart',()=>{editorComposing=true});
+editor.addEventListener('compositionend',()=>{editorComposing=false;scheduleEditorHistory()});
+editor.addEventListener('input',()=>{selectedSizeRange=null;draw();persist();if(!editorComposing)scheduleEditorHistory()});
 let savedRange=null;
 function captureSelection(){
  const sel=window.getSelection();
@@ -190,9 +194,9 @@ editor.addEventListener('keyup',captureSelection);
 editor.addEventListener('mouseup',captureSelection);
 editor.addEventListener('touchend',()=>{
  // iOS can finish adjusting its selection handles after touchend.
- requestAnimationFrame(captureSelection);
- setTimeout(()=>{captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets},120);
- setTimeout(()=>{captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets},350);
+ requestAnimationFrame(()=>{if(!colorSession)captureSelection()});
+ setTimeout(()=>{if(!colorSession){captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()}},120);
+ setTimeout(()=>{if(!colorSession){captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()}},350);
 });
 // 선택한 글자의 크기를 크기(px) 입력칸에 실시간으로 표시합니다.
 // CSS 렌더링 크기(.66배)가 아닌 최종 PNG 기준 크기를 표시합니다.
@@ -217,7 +221,7 @@ document.addEventListener('selectionchange',()=>{
  const sel=window.getSelection();
  if(sel && editor.contains(sel.anchorNode)){
   if(sel.isCollapsed && !colorSession){lastSelectionOffsets=null;savedRange=null;}
-  else {captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets()||lastSelectionOffsets;}
+  else if(!sel.isCollapsed && !colorSession){captureSelection();lastSelectionOffsets=takeCurrentSelectionOffsets();}
   updateToolbar();updateSelectedFontSize();
  }else if(document.activeElement!==fontSizeControl){
   fontSizeControl.value=baseFontSize;
@@ -232,6 +236,7 @@ function activeTextSelection(){
  return null;
 }
 function applyFormat(command){
+ flushPendingEditorHistory();
  const range=activeTextSelection() || (savedRange && !savedRange.collapsed ? savedRange.cloneRange() : null);
  const selection=range && editor.contains(range.commonAncestorContainer) ? range : null;
  const model=readStyledSelection(selection);
@@ -260,12 +265,12 @@ for(const btn of document.querySelectorAll('[data-format]')){
  btn.addEventListener('touchstart',captureSelection,{passive:true});
  btn.addEventListener('click',()=>applyFormat(btn.dataset.format));
 }
-// 글자색은 본문 기본색과 선택 영역의 색상을 반드시 분리합니다.
-// iOS 색상 선택기를 열면 DOM Selection이 사라지므로 글자 단위 좌표로 보관합니다.
-const textColor = byId('ink');
-let colorSession = null; // {mode:'selection'|'all', start, end}
-let lastSelectionOffsets = null;
-let colorTouchedAt = 0;
+// iOS의 색상 패널은 포커스를 빼앗으므로 선택된 문자의 절대 위치만 보관합니다.
+// 이전 선택 위치를 영구 보관하지 않으며, 편집창을 탭하면 즉시 폐기합니다.
+const textColor=byId('ink');
+let colorSession=null;
+let lastSelectionOffsets=null;
+let colorSessionChanged=false;
 function selectionOffsets(range){
  if(!range||range.collapsed||!editor.contains(range.commonAncestorContainer))return null;
  const model=readStyledSelection(range);
@@ -275,9 +280,10 @@ function selectionOffsets(range){
 function takeCurrentSelectionOffsets(){return selectionOffsets(activeTextSelection());}
 function beginColorSelection(){
  if(colorSession)return;
+ // 명시적으로 선택한 영역만 우선합니다. 과거에 저장된 DOM Range는 사용하지 않습니다.
  const chosen=takeCurrentSelectionOffsets() || lastSelectionOffsets;
  colorSession=chosen?{mode:'selection',...chosen}:{mode:'all'};
- colorTouchedAt=Date.now();
+ colorSessionChanged=false;
 }
 const textColorLabel=textColor.closest('label');
 if(textColorLabel){
@@ -288,13 +294,17 @@ textColor.addEventListener('pointerdown',beginColorSelection);
 textColor.addEventListener('touchstart',beginColorSelection,{passive:true});
 textColor.addEventListener('focus',beginColorSelection);
 function applyTextColor(color){
+ flushPendingEditorHistory();
  if(!/^#[0-9a-fA-F]{6}$/.test(color))return;
  if(!colorSession)beginColorSelection();
- if(colorSession.mode==='selection'){
+ const session=colorSession;
+ // 여러 번 발생하는 iOS input 이벤트에도 동일한 원본 문자 범위를 적용합니다.
+ if(session.mode==='selection'){
    const model=parseStyledText();
-   const {start,end}=colorSession;
+   const {start,end}=session;
    if(start<0||end>model.total||end<=start){
-     byId('status').textContent='선택 위치가 변경되었습니다. 다시 드래그해 주세요.';return;
+     byId('status').textContent='선택 영역이 변경되었습니다. 다시 선택해 주세요.';
+     return;
    }
    for(const p of model.paras)for(const r of p.runs){
      r._pieces=[...r.text].map((text,i)=>{
@@ -302,24 +312,23 @@ function applyTextColor(color){
        return {...r,text,position,color:position>=start&&position<end?color:r.color};
      });
    }
-   // 선택을 다시 만들지 않아 iOS의 색상 선택창과 충돌하지 않습니다.
    renderStyledModel(model,null);
-   byId('status').textContent='선택한 글자의 색상이 변경되었습니다.';
+   byId('status').textContent='선택한 글자에만 색상이 적용되었습니다.';
  }else{
    baseInkColor=color;
-   // 전체 색상 적용 시 기존의 부분 색상만 제거하고 다른 서식은 보존합니다.
+   // 드래그하지 않은 경우에만 전체 색상 변경, 기존 부분 색상은 명시적으로 해제.
    for(const el of editor.querySelectorAll('[style]')){
-     if(el.style.color){
-       el.style.removeProperty('color');
-       if(!el.getAttribute('style')?.trim())el.removeAttribute('style');
-     }
+     if(el.style.color){el.style.removeProperty('color');if(!el.getAttribute('style')?.trim())el.removeAttribute('style');}
    }
    syncEditorStyles();draw();persist();
    byId('status').textContent='본문 전체 글자색을 변경했습니다.';
  }
+ colorSessionChanged=true;
 }
 function finishColorSelection(){
+ if(colorSessionChanged)recordEditorHistory();
  colorSession=null;
+ colorSessionChanged=false;
  lastSelectionOffsets=null;
  savedRange=null;
  formattingRange=null;
@@ -330,15 +339,22 @@ function finishColorSelection(){
 }
 textColor.addEventListener('input',()=>applyTextColor(textColor.value));
 textColor.addEventListener('change',()=>{
- applyTextColor(textColor.value);
+ // 같은 색상을 두 번 고른 경우 iOS는 input을 발생시키지 않기도 합니다.
+ if(!colorSessionChanged)applyTextColor(textColor.value);
  finishColorSelection();
 });
-// 편집창을 다시 터치하면 기존 범위를 버려 과거 드래그에 고정되지 않게 합니다.
+// iOS는 color picker를 닫아도 change가 오지 않을 수 있습니다.
+// 색상 패널이 포커스를 바꾸는 시점은 iOS마다 달라 blur로 종료하면 선택이 소실됩니다.
+// 현재 팔레트와 동일한 색을 또 지정하는 경우를 위해, 색상 버튼을 누르는 순간
+// 기존 선택 영역에 현재 색을 한 번 적용합니다. 이후 input/change가 들어오면 덮어씁니다.
+textColor.addEventListener('click',()=>{
+ if(colorSession?.mode==='selection' && !colorSessionChanged)applyTextColor(textColor.value);
+});
+// 사용자가 다시 본문에 손을 댄 순간 과거 선택은 폐기합니다.
 editor.addEventListener('pointerdown',()=>{
- colorSession=null; // 색상 선택을 취소한 뒤 다시 편집하는 경우도 초기화
- lastSelectionOffsets=null;
- savedRange=null;
- formattingRange=null;
+ if(colorSessionChanged)recordEditorHistory();
+ colorSessionChanged=false;
+ colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
 });
 // 선택 영역은 브라우저의 removeFormat으로 경계 노드를 먼저 분리한 뒤 인라인 스타일도 지웁니다.
 // 전체 해제는 문단과 줄바꿈을 유지한 채 본문 내 서식을 모두 제거합니다.
@@ -386,6 +402,7 @@ let formattingRange=null;
 function rememberFormattingRange(){formattingRange=activeTextSelection()||(savedRange&&!savedRange.collapsed?savedRange.cloneRange():null)}
 function validFormattingRange(){const r=formattingRange;return r&&!r.collapsed&&editor.contains(r.commonAncestorContainer)?r.cloneRange():null}
 function styleSelectedRange(properties, remove=false){
+ flushPendingEditorHistory();
  const range=validFormattingRange();if(!range)return false;
  try{
   const span=document.createElement('span');
@@ -403,11 +420,12 @@ function styleSelectedRange(properties, remove=false){
 byId('fontFamily').addEventListener('pointerdown',rememberFormattingRange);
 byId('fontFamily').addEventListener('focus',rememberFormattingRange);
 byId('fontFamily').addEventListener('change',async()=>{
+ flushPendingEditorHistory();
  const family=byId('fontFamily').value;
  const selected=validFormattingRange();
  if(selected)styleSelectedRange({fontFamily:fontStacks[family]});
  else baseFontFamily=family;
- syncEditorStyles();persist();draw();
+ syncEditorStyles();persist();draw();recordEditorHistory();
  try{
   await document.fonts.load(`${fontSizeControl.value}px ${fontStacks[family]}`);
   byId('fontStatus').textContent=selected?'선택한 글자의 글꼴을 변경했습니다.':'본문 전체 글꼴을 변경했습니다.';
@@ -421,7 +439,7 @@ highlightColor.addEventListener('focus',rememberFormattingRange);
 highlightColor.addEventListener('input',()=>{
  if(!validFormattingRange()){byId('status').textContent='형광펜을 적용할 글자를 먼저 드래그해 주세요.';return}
  if(styleSelectedRange({backgroundColor:highlightColor.value})){
-  byId('status').textContent='선택 영역에 형광펜을 적용했습니다.';draw();persist();
+  byId('status').textContent='선택 영역에 형광펜을 적용했습니다.';draw();persist();recordEditorHistory();
  }
 });
 // 인라인 서식만 삭제하고 문단/줄바꿈은 보존합니다.
@@ -437,13 +455,14 @@ function stripInlineFormats(root){
 }
 function refreshAfterFormatClear(message){
  savedRange=null;formattingRange=null;lastSelectionOffsets=null;
- syncEditorStyles();updateToolbar();draw();persist();
+ syncEditorStyles();updateToolbar();draw();persist();recordEditorHistory();
  byId('status').textContent=message;
 }
 // 드래그 선택 부분의 서식만 해제: 기본 글꼴/색상/굵기와 형광펜 모두 초기화
 const selectedClear=byId('clearFormat');
 selectedClear.addEventListener('mousedown',e=>{e.preventDefault();rememberFormattingRange()});
 selectedClear.addEventListener('click',()=>{
+ flushPendingEditorHistory();
  const range=activeTextSelection()||validFormattingRange();
  if(!range){byId('status').textContent='서식을 해제할 글자를 먼저 드래그해 주세요.';return}
  const model=readStyledSelection(range);
@@ -459,6 +478,7 @@ selectedClear.addEventListener('click',()=>{
 });
 // 본문 전체 선택 서식 해제. 내용/엔터는 보존하며 기본 텍스트 서식으로 되돌립니다.
 byId('clearAllFormat').addEventListener('click',()=>{
+ flushPendingEditorHistory();
  stripInlineFormats(editor);
  for(const key of Object.keys(globalFormat))globalFormat[key]=false;
  baseFontFamily='sans';byId('fontFamily').value=baseFontFamily;
@@ -467,6 +487,7 @@ byId('clearAllFormat').addEventListener('click',()=>{
 });
 // 형광펜 지우기는 선택 영역 여부와 무관하게 본문 전체의 형광펜만 지웁니다.
 byId('clearHighlight').addEventListener('click',()=>{
+ flushPendingEditorHistory();
  for(const el of editor.querySelectorAll('*')){
    if(el.style && el.style.backgroundColor){
      el.style.removeProperty('background-color');
@@ -481,6 +502,88 @@ byId('clearHighlight').addEventListener('click',()=>{
  }
  // 중첩된 투명 형광펜 래퍼도 더 이상 필요하지 않습니다.
  refreshAfterFormatClear('본문 전체의 형광펜을 지웠습니다.');
+});
+// 편집창 전용 실행 취소/다시 실행. 사진/레이아웃/저장 기능과 독립적으로 동작합니다.
+const MAX_EDITOR_HISTORY=70;
+const editorHistory=[];
+let editorHistoryIndex=-1;
+let editorHistoryTimer=null;
+let restoringEditorHistory=false;
+function editorSnapshot(){
+ return {
+  html:sanitizeHTML(editor.innerHTML),baseInkColor,baseFontFamily,baseFontSize,
+  globalFormat:{...globalFormat}
+ };
+}
+function editorSnapshotKey(s){return JSON.stringify(s);}
+function updateEditorHistoryButtons(){
+ byId('editorUndo').disabled=editorHistoryIndex<=0;
+ byId('editorRedo').disabled=editorHistoryIndex<0||editorHistoryIndex>=editorHistory.length-1;
+}
+function flushPendingEditorHistory(){
+ if(editorHistoryTimer){clearTimeout(editorHistoryTimer);editorHistoryTimer=null;recordEditorHistory();}
+}
+function recordEditorHistory(){
+ if(restoringEditorHistory)return;
+ if(editorHistoryTimer){clearTimeout(editorHistoryTimer);editorHistoryTimer=null;}
+ const next=editorSnapshot();
+ if(editorHistoryIndex>=0&&editorSnapshotKey(editorHistory[editorHistoryIndex])===editorSnapshotKey(next))return;
+ editorHistory.splice(editorHistoryIndex+1);
+ editorHistory.push(next);
+ if(editorHistory.length>MAX_EDITOR_HISTORY)editorHistory.shift();
+ editorHistoryIndex=editorHistory.length-1;
+ updateEditorHistoryButtons();
+}
+function scheduleEditorHistory(){
+ if(restoringEditorHistory)return;
+ if(editorHistoryTimer)clearTimeout(editorHistoryTimer);
+ editorHistoryTimer=setTimeout(()=>{editorHistoryTimer=null;recordEditorHistory()},350);
+}
+function restoreEditorSnapshot(snapshot){
+ restoringEditorHistory=true;
+ try{
+  editor.innerHTML=snapshot.html;
+  baseInkColor=snapshot.baseInkColor;
+  baseFontFamily=snapshot.baseFontFamily;
+  baseFontSize=snapshot.baseFontSize;
+  Object.assign(globalFormat,snapshot.globalFormat);
+  byId('ink').value=baseInkColor;
+  byId('fontFamily').value=baseFontFamily;
+  fontSizeControl.value=baseFontSize;
+  colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
+  const sel=window.getSelection();sel?.removeAllRanges();
+  syncEditorStyles();updateToolbar();draw();persist();
+ } finally {restoringEditorHistory=false;updateEditorHistoryButtons();}
+}
+function stepEditorHistory(delta){
+ // 편집 도중 실행 취소를 누르면 최신 입력을 우선 이력으로 확정합니다.
+ if(editorHistoryTimer){clearTimeout(editorHistoryTimer);editorHistoryTimer=null;recordEditorHistory();}
+ const next=editorHistoryIndex+delta;
+ if(next<0||next>=editorHistory.length)return;
+ editorHistoryIndex=next;restoreEditorSnapshot(editorHistory[next]);
+ byId('status').textContent=delta<0?'마지막 편집을 취소했습니다.':'편집을 다시 실행했습니다.';
+}
+for(const id of ['editorUndo','editorRedo','editorClearText']){
+ // 모바일에서 입력창의 드래그 범위가 엉뚱하게 재사용되지 않도록 합니다.
+ byId(id).addEventListener('pointerdown',()=>{colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null});
+}
+byId('editorUndo').addEventListener('click',()=>stepEditorHistory(-1));
+byId('editorRedo').addEventListener('click',()=>stepEditorHistory(1));
+byId('editorClearText').addEventListener('click',()=>{
+ if(!editor.textContent?.trim()&&!editor.querySelector('img'))return;
+ if(editorHistoryTimer){clearTimeout(editorHistoryTimer);editorHistoryTimer=null;recordEditorHistory();}
+ editor.replaceChildren();
+ const sel=window.getSelection();sel?.removeAllRanges();
+ colorSession=null;lastSelectionOffsets=null;savedRange=null;formattingRange=null;selectedSizeRange=null;
+ updateToolbar();draw();persist();recordEditorHistory();
+ byId('status').textContent='본문 전체를 삭제했습니다. 실행 취소로 복구할 수 있어요.';
+});
+editor.addEventListener('keydown',e=>{
+ if(!(e.ctrlKey||e.metaKey)||e.altKey)return;
+ const key=e.key.toLowerCase();
+ if(key==='z'||key==='y'){
+  e.preventDefault();stepEditorHistory(key==='y'||e.shiftKey?1:-1);
+ }
 });
 function persist(){try{const s={centerVersion:1,fontMenuVersion:2,colorDefaultsVersion:1,storyHTML:sanitizeHTML(editor.innerHTML),fontFamily:baseFontFamily,baseFontFamily,fontSize:baseFontSize,alignMode,globalFormat:{...globalFormat},spacingDefaultsVersion:2,backgroundMode:byId('backgroundMode').value,gradientAngle:Number(byId('gradientAngle').value),bgEnd:byId('bgEnd').value};for(const id in defs)s[id]=Number(byId(id).value);s.bg=byId('bg').value;s.ink=baseInkColor;localStorage.setItem('log-maker-settings',JSON.stringify(s))}catch{}}
 function initialCrop(){if(!photo)return;const w=photo.naturalWidth,h=photo.naturalHeight;let cw=w,ch=w/ASPECT;if(ch>h){ch=h;cw=h*ASPECT}crop={x:(w-cw)/2,y:(h-ch)/2,w:cw,h:ch};positionCrop()}
@@ -651,6 +754,7 @@ function renderStyledModel(model,restore){
   const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);savedRange=range.cloneRange();
  }
  updateToolbar();updateSelectedFontSize();draw();persist();
+ if(!colorSession)recordEditorHistory();
 }
 function setupFont(ch,size){size=ch.size||size;ctx.font=`${ch.italic?'italic ':''}${ch.bold?'600 ':''}${size}px ${fontStacks[ch.fontFamily]||fontStacks[baseFontFamily]||fontStacks.sans}`}
 function lineWidth(line,size){let w=0;for(const c of line){setupFont(c,size);w+=ctx.measureText(c.text).width}return w}
@@ -778,5 +882,5 @@ byId('reset').addEventListener('click',()=>{
  colorSession=null;lastSelectionOffsets=null;syncEditorStyles();draw();persist();
 });
 syncEditorStyles();updateToolbar();
-if(document.fonts?.ready)document.fonts.ready.then(draw);draw();
+if(document.fonts?.ready)document.fonts.ready.then(draw);draw();recordEditorHistory();
 })();
